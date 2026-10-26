@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#10161a">
+<title>Zombie Gun Sandbox</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,sans-serif}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#10161a;color:#f3f5f6}canvas{display:block;width:100%;height:100%;outline:0}#ui{position:fixed;inset:0;pointer-events:none}#top{position:absolute;left:12px;top:12px;display:flex;gap:8px;flex-wrap:wrap;max-width:calc(100vw - 24px)}.pill{padding:8px 11px;border:1px solid #47545a;border-radius:10px;background:#111bdf0d;background:rgba(12,18,22,.86);backdrop-filter:blur(5px);font-size:13px}.pill strong{color:#b7f777}#panel{position:absolute;right:12px;top:12px;width:min(270px,calc(100vw - 24px));padding:12px;border:1px solid #465258;border-radius:14px;background:rgba(12,18,22,.9);pointer-events:auto}h1{font-size:16px;margin:0 0 7px;letter-spacing:.04em}#hint{font-size:12px;color:#c2cbd0;line-height:1.45;margin-bottom:10px}button{font:inherit;cursor:pointer;border:1px solid #627077;border-radius:9px;background:#243239;color:#f4f7f8;padding:9px 10px;min-height:40px}button:hover{background:#35464e}button:focus-visible{outline:3px solid #b7f777;outline-offset:2px}.row{display:flex;gap:6px;margin:6px 0}.row button{flex:1;min-width:0;font-size:12px}button.active{border-color:#b7f777;background:#344627;color:#e8ffd5}#status{font-size:12px;color:#d2dbdf;margin-top:8px;min-height:17px}#message{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);padding:9px 13px;border-radius:10px;background:rgba(7,12,14,.75);font-size:12px;text-align:center;max-width:min(620px,90vw)}#crosshair{position:absolute;left:50%;top:50%;width:13px;height:13px;transform:translate(-50%,-50%);border:1.5px solid rgba(236,255,236,.85);border-radius:50%;box-shadow:0 0 7px #000}#crosshair:after{content:"";position:absolute;width:3px;height:3px;background:#b7f777;border-radius:50%;left:3.5px;top:3.5px}#vrNote{display:none}@media(max-width:650px){#panel{top:auto;right:8px;bottom:60px;width:215px;padding:9px}#top{max-width:calc(100vw - 16px);left:8px;top:8px}.pill{font-size:11px;padding:6px 8px}#hint{font-size:11px}.row button{padding:7px 5px;min-height:36px}}@media(hover:none){#crosshair{display:none}}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.166.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.166.1/examples/jsm/"}}
+</script>
+</head>
+<body>
+<div id="ui">
+  <div id="top">
+    <div class="pill">KILLS <strong id="kills">0</strong></div>
+    <div class="pill">ZOMBIES <strong id="count">3</strong></div>
+    <div class="pill">WEAPON <strong id="weaponLabel">PISTOL</strong></div>
+    <div class="pill">AMMO <strong id="ammo">12 / 12</strong></div>
+  </div>
+  <div id="panel">
+    <h1>🧟 ZOMBIE GUN SANDBOX</h1>
+    <div id="hint">Desktop: click the arena, WASD move, mouse aim, click/hold fire, R reload, 1–4 switch guns. Esc releases mouse.<br>VR: press Enter VR, point the right controller and squeeze trigger. Left stick moves; X/A spawns, Y/B sends a horde; right Y/B reloads.</div>
+    <div class="row"><button id="spawn">+ Zombie</button><button id="horde">Horde ×5</button><button id="clear">Clear</button></div>
+    <div class="row"><button data-gun="0" class="active">Pistol</button><button data-gun="1">SMG</button></div>
+    <div class="row"><button data-gun="2">Shotgun</button><button data-gun="3">Rifle</button></div>
+    <div class="row"><button id="reload">Reload (R)</button></div>
+    <div id="status">Loading 3D arena…</div>
+  </div>
+  <div id="crosshair"></div>
+  <div id="message">Stylized zombie combat. Click the scene to lock your mouse. Use Enter VR in a compatible headset browser.</div>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { VRButton } from 'three/addons/webxr/VRButton.js';
+
+const $=id=>document.getElementById(id);
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x111a1b);
+scene.fog=new THREE.Fog(0x111a1b,22,62);
+const camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,.06,100);
+camera.position.set(0,1.65,7.5);
+camera.rotation.order='YXZ';
+const rig=new THREE.Group();scene.add(rig);rig.add(camera);
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);
+renderer.xr.enabled=true;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+document.body.appendChild(VRButton.createButton(renderer));
+const hemi=new THREE.HemisphereLight(0xb3d6e1,0x2b2925,2.0);scene.add(hemi);
+const sun=new THREE.DirectionalLight(0xffe3c1,2.8);sun.position.set(-8,14,6);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);sun.shadow.camera.left=-24;sun.shadow.camera.right=24;sun.shadow.camera.top=24;sun.shadow.camera.bottom=-24;scene.add(sun);
+const fill=new THREE.PointLight(0x7ea7a8,18,25);fill.position.set(7,4,-8);scene.add(fill);
+const mat=(color,roughness=.8,extra={})=>new THREE.MeshStandardMaterial({color,roughness,...extra});
+const floorMat=mat(0x303a39),concrete=mat(0x48504b),dark=mat(0x202729),rust=mat(0x5c3023),metal=mat(0x657279,.4,{metalness:.65});
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(70,70),floorMat);floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;scene.add(floor);
+const grid=new THREE.GridHelper(70,70,0x65716d,0x44504b);grid.position.y=.015;grid.material.transparent=true;grid.material.opacity=.35;scene.add(grid);
+function box(parent,x,y,z,sx,sy,sz,material,cast=true){const m=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),material);m.position.set(x,y,z);m.castShadow=cast;m.receiveShadow=true;parent.add(m);return m}
+function cylinder(parent,x,y,z,rt,rb,h,material,segments=10){const m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,segments),material);m.position.set(x,y,z);m.castShadow=true;parent.add(m);return m}
+for(let i=0;i<4;i++){const x=i%2?17:-17,z=i<2?-9:10;box(scene,x,1.7,z,1.2,3.4,1.2,concrete);box(scene,x,3.5,z,.9,.2,.9,metal)}
+for(let i=0;i<12;i++){const x=(Math.random()-.5)*27,z=-5-Math.random()*22;const b=box(scene,x,.6,z,1.15,1.2,1.15,i%3===0?rust:concrete);b.rotation.y=Math.random()*.7}
+for(let i=0;i<8;i++){const x=i%2?12:-12,z=-15-i*2.5;box(scene,x,1.05,z,3,2.1,.35,dark);for(let j=0;j<4;j++)box(scene,x-1.1+j*.72,1.05,z-.21,.07,1.8,.04,metal,false)}
+const skin=mat(0x809078),skinDark=mat(0x4d6252),skinLight=mat(0xa0a17b),shirt=mat(0x494a3d),shirt2=mat(0x383e38),pants=mat(0x383b3b),bootMat=mat(0x1b2020),hair=mat(0x242525),eyeWhite=mat(0xc5c6a3),eyeGlow=mat(0xe65c46,.3,{emissive:0x4d0804}),mouthMat=mat(0x251514),bloodMat=mat(0x7b1018,.5,{roughness:.7});
+const zombies=[],particles=[],detached=[],stains=[];
+const zombieParts=new THREE.Group();scene.add(zombieParts);
+let kills=0,weaponIndex=0,lastShot=0,mouseHeld=false,keys={},yaw=0,pitch=0;
+const weapons=[
+ {name:'PISTOL',mag:12,rate:250,damage:1,spread:.006,pellets:1,color:0x3f4647},
+ {name:'SMG',mag:30,rate:85,damage:1,spread:.02,pellets:1,color:0x39484c},
+ {name:'SHOTGUN',mag:8,rate:650,damage:1,spread:.075,pellets:7,color:0x4c3829},
+ {name:'RIFLE',mag:24,rate:145,damage:2,spread:.009,pellets:1,color:0x2c3937}
+];
+const ammo=weapons.map(w=>w.mag);
+function makeGun(color=0x343d40){
+ const g=new THREE.Group();
+ box(g,0,0,0,.14,.13,.42,mat(color,.38,{metalness:.6}));
+ box(g,0,.02,-.27,.07,.065,.35,metal);
+ box(g,0,-.105,.09,.08,.18,.12,mat(0x202325));
+ box(g,0,.085,.03,.055,.035,.12,metal);
+ return g;
+}
+const desktopGun=makeGun(0x384349);desktopGun.position.set(.33,-.27,-.55);camera.add(desktopGun);
+const controllers=[];
+for(let i=0;i<2;i++){
+ const c=renderer.xr.getController(i);c.userData.hand=i===0?'left':'right';rig.add(c);controllers.push(c);
+ c.addEventListener('connected',e=>{c.userData.hand=e.data.handedness||c.userData.hand});
+ if(i===1){c.add(makeGun(0x3c4649));const pts=[new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-7)];const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0xb7f777,transparent:true,opacity:.5}));c.add(line);c.userData.laser=line;
+  c.addEventListener('selectstart',()=>fireController(c));
+ }
+}
+function addMesh(parent,geometry,material,pos,key,z){const m=new THREE.Mesh(geometry,material);m.position.copy(pos);m.castShadow=true;m.receiveShadow=true;parent.add(m);m.userData.zombie=z;m.userData.partKey=key;return m}
+function segment(parent,a,b,r,material,key,z){const A=new THREE.Vector3(...a),B=new THREE.Vector3(...b),d=new THREE.Vector3().subVectors(B,A);const length=d.length();const geo=new THREE.CapsuleGeometry(r,Math.max(.01,length-r*2),3,8);const mesh=new THREE.Mesh(geo,material);mesh.position.copy(A).add(B).multiplyScalar(.5);mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());mesh.castShadow=true;mesh.receiveShadow=true;mesh.userData.zombie=z;mesh.userData.partKey=key;parent.add(mesh);return mesh}
+function partGroup(root,z,key,pos){const g=new THREE.Group();g.position.set(...pos);g.userData.zombie=z;g.userData.partKey=key;root.add(g);return g}
+function addZombie(x,zpos){
+ const root=new THREE.Group();root.position.set(x,0,zpos);zombieParts.add(root);
+ const z={root,hp:3,dead:false,age:0,speed:.22+Math.random()*.16,limbs:{},detached:new Set(),spin:(Math.random()-.5)*.6};zombies.push(z);
+ const torso=addMesh(root,new THREE.CapsuleGeometry(.27,.55,5,12),shirt,new THREE.Vector3(0,1.15,0),'torso',z);torso.rotation.z=(Math.random()-.5)*.08;
+ addMesh(root,new THREE.SphereGeometry(.235,16,12),skin,new THREE.Vector3(0,1.8,0),'head',z);
+ addMesh(root,new THREE.SphereGeometry(.22,14,10),hair,new THREE.Vector3(0,1.96,-.018),'head',z).scale.set(1,.58,1);
+ addMesh(root,new THREE.SphereGeometry(.06,10,8),skinDark,new THREE.Vector3(0,1.66,.13),'head',z);
+ for(const s of [-1,1]){
+   addMesh(root,new THREE.SphereGeometry(.055,10,8),skin,new THREE.Vector3(s*.238,1.81,0),'head',z);
+   addMesh(root,new THREE.SphereGeometry(.043,10,8),eyeWhite,new THREE.Vector3(s*.087,1.825,.19),'head',z);
+   addMesh(root,new THREE.SphereGeometry(.023,8,6),eyeGlow,new THREE.Vector3(s*.08,1.822,.224),'head',z);
+   addMesh(root,new THREE.SphereGeometry(.017,7,6),mouthMat,new THREE.Vector3(s*.053,1.71,.205),'head',z);
+ }
+ addMesh(root,new THREE.BoxGeometry(.16,.045,.04),mouthMat,new THREE.Vector3(0,1.69,.2),'head',z);
+ // Torn shirt patches, seams, and a strap
+ const patch=mat(0x222e2d),patch2=mat(0x70604a);
+ const p=addMesh(root,new THREE.BoxGeometry(.105,.22,.015),patch,new THREE.Vector3(-.13,1.22,.245),'torso',z);p.rotation.z=.24;
+ const p2=addMesh(root,new THREE.BoxGeometry(.08,.14,.02),patch2,new THREE.Vector3(.17,1.32,.23),'torso',z);p2.rotation.z=-.3;
+ // neck and collar
+ cylinder(root,0,1.52,0,.09,.09,.16,skin,9);
+ for(const s of [-1,1]){
+  const arm=partGroup(root,z,s<0?'leftArm':'rightArm',[s*.31,1.43,0]);z.limbs[s<0?'leftArm':'rightArm']=arm;
+  segment(arm,[0,0,0],[s*.1,-.27,.015],.095,shirt2,s<0?'leftArm':'rightArm',z);
+  segment(arm,[s*.1,-.27,.015],[s*.14,-.52,.035],.073,skinDark,s<0?'leftArm':'rightArm',z);
+  addMesh(arm,new THREE.SphereGeometry(.075,8,7),skin,new THREE.Vector3(s*.14,-.58,.04),s<0?'leftArm':'rightArm',z);
+  for(let f=0;f<4;f++)segment(arm,[s*.14+(f-1.5)*.026,-.59,.07],[s*.14+(f-1.5)*.034,-.665,.10],.012,skin,s<0?'leftArm':'rightArm',z);
+  const leg=partGroup(root,z,s<0?'leftLeg':'rightLeg',[s*.135,.87,0]);z.limbs[s<0?'leftLeg':'rightLeg']=leg;
+  segment(leg,[0,0,0],[s*.035,-.34,.005],.12,pants,s<0?'leftLeg':'rightLeg',z);
+  segment(leg,[s*.035,-.34,.005],[s*.04,-.67,.045],.078,skinDark,s<0?'leftLeg':'rightLeg',z);
+  const boot=addMesh(leg,new THREE.BoxGeometry(.16,.12,.24),bootMat,new THREE.Vector3(s*.04,-.72,.095),s<0?'leftLeg':'rightLeg',z);boot.rotation.x=-.08;
+  // ragged cuffs
+  addMesh(leg,new THREE.TorusGeometry(.08,.018,5,9),shirt2,new THREE.Vector3(s*.04,-.62,.045),s<0?'leftLeg':'rightLeg',z);
+ }
+ // scars and stylized grime marks
+ const scar=mat(0x5f3530);
+ const sc=addMesh(root,new THREE.BoxGeometry(.11,.035,.013),scar,new THREE.Vector3(.13,1.88,.205),'head',z);sc.rotation.z=.5;
+ for(let i=0;i<3;i++){const stain=addMesh(root,new THREE.SphereGeometry(.022,6,5),bloodMat,new THREE.Vector3((Math.random()-.5)*.35,1.25+Math.random()*.25,.25),'torso',z);stain.scale.set(1,1.4,.25)}
+ const dir=new THREE.Vector3(x,0,zpos).sub(new THREE.Vector3(rig.position.x+camera.position.x,0,rig.position.z+camera.position.z));root.rotation.y=Math.atan2(-dir.x,-dir.z);
+ return z;
+}
+function playerPos(){const p=new THREE.Vector3();camera.getWorldPosition(p);return p}
+function flatForward(){const dir=new THREE.Vector3();if(renderer.xr.isPresenting)renderer.xr.getCamera(camera).getWorldDirection(dir);else camera.getWorldDirection(dir);dir.y=0;return dir.normalize()}
+function spawnOne(){const pp=playerPos(),f=flatForward(),side=new THREE.Vector3(-f.z,0,f.x);const dist=7+Math.random()*6,offset=(Math.random()-.5)*8;const x=pp.x+f.x*dist+side.x*offset,z=pp.z+f.z*dist+side.z*offset;addZombie(x,z);updateHud();$('status').textContent='A zombie entered the arena.'}
+function spawnHorde(n=5){for(let i=0;i<n;i++)spawnOne();$('status').textContent='Horde incoming!'}
+function clearZombies(){for(const z of zombies){if(z.root.parent)z.root.parent.remove(z.root)}zombies.length=0;updateHud();$('status').textContent='Arena cleared. Spawn another wave.'}
+function updateHud(){$('kills').textContent=kills;$('count').textContent=zombies.filter(z=>!z.dead).length;$('weaponLabel').textContent=weapons[weaponIndex].name;$('ammo').textContent=ammo[weaponIndex]+' / '+weapons[weaponIndex].mag;document.querySelectorAll('[data-gun]').forEach(b=>b.classList.toggle('active',Number(b.dataset.gun)===weaponIndex))}
+function switchWeapon(i){weaponIndex=(i+weapons.length)%weapons.length;updateHud()}
+function reload(){if(ammo[weaponIndex]===weapons[weaponIndex].mag){$('status').textContent='Magazine already full.';return}ammo[weaponIndex]=weapons[weaponIndex].mag;updateHud();$('status').textContent='Reloaded '+weapons[weaponIndex].name+'.'}
+const raycaster=new THREE.Raycaster();const tmpOrigin=new THREE.Vector3(),tmpDir=new THREE.Vector3();
+function bloodBurst(point,dir,amount=12){makeStain(point);for(let i=0;i<amount;i++){const r=.018+Math.random()*.045;const m=new THREE.Mesh(new THREE.SphereGeometry(r,6,5),new THREE.MeshStandardMaterial({color:i%4===0?0x39070b:0x8d1018,roughness:.9,transparent:true,opacity:.95}));m.position.copy(point);scene.add(m);const d=dir.clone().multiplyScalar(.3+Math.random()*2.3);d.x+=(Math.random()-.5)*2.1;d.y+=Math.random()*1.7;d.z+=(Math.random()-.5)*2.1;particles.push({mesh:m,vel:d,life:.7+Math.random()*1.7,maxLife:2.4,gravity:3.6})}}
+function makeStain(p){const m=new THREE.Mesh(new THREE.CircleGeometry(.12+Math.random()*.24,10),new THREE.MeshBasicMaterial({color:0x57090f,transparent:true,opacity:.68,depthWrite:false}));m.rotation.x=-Math.PI/2;m.position.set(p.x,.022+Math.random()*.004,p.z);m.scale.set(1,.65+Math.random()*.8,1);scene.add(m);stains.push({mesh:m,life:45})}
+function detachLimb(z,key,point,dir){const limb=z.limbs[key];if(!limb||z.detached.has(key)||z.dead)return;z.detached.add(key);limb.updateWorldMatrix(true,true);const pos=limb.getWorldPosition(new THREE.Vector3()),quat=limb.getWorldQuaternion(new THREE.Quaternion());limb.removeFromParent();scene.add(limb);limb.position.copy(pos);limb.quaternion.copy(quat);detached.push({obj:limb,vel:dir.clone().multiplyScalar(2.2).add(new THREE.Vector3((Math.random()-.5)*2,2+Math.random()*2,(Math.random()-.5)*2)),spin:new THREE.Vector3(Math.random()*8,Math.random()*8,Math.random()*8),life:8});bloodBurst(point,dir,22);$('status').textContent='Limb dismembered — stylized gore effects.'}
+function killZombie(z,point,dir){if(z.dead)return;z.dead=true;kills++;z.age=0;z.speed=0;z.spin=(Math.random()-.5)*3;z.root.userData.dead=true;z.root.rotation.x=0.25;z.root.rotation.z=(Math.random()-.5)*.2;z.vFall=dir.clone().multiplyScalar(1.1).add(new THREE.Vector3(0,.25,0));bloodBurst(point,dir,26);$('status').textContent='Zombie down. Keep moving.';updateHud()}
+function tryShoot(origin,dir){const now=performance.now(),w=weapons[weaponIndex];if(now-lastShot<w.rate)return;lastShot=now;if(ammo[weaponIndex]<=0){$('status').textContent='Empty magazine — reload!';return}ammo[weaponIndex]--;updateHud();
+ const n=w.pellets;for(let i=0;i<n;i++){const shotDir=dir.clone();shotDir.x+=(Math.random()-.5)*w.spread;shotDir.y+=(Math.random()-.5)*w.spread;shotDir.z+=(Math.random()-.5)*w.spread;shotDir.normalize();raycaster.set(origin,shotDir);raycaster.far=45;const hitList=raycaster.intersectObjects(zombies.filter(z=>z.root.parent).map(z=>z.root),true);if(!hitList.length)continue;const hit=hitList[0],z=hit.object.userData.zombie,key=hit.object.userData.partKey||'torso';if(!z||z.dead)continue;bloodBurst(hit.point,shotDir,w.name==='SHOTGUN'?5:9);if((key==='leftArm'||key==='rightArm'||key==='leftLeg'||key==='rightLeg')&&Math.random()<(w.name==='SHOTGUN'?.8:.28)){detachLimb(z,key,hit.point,shotDir)}
+ const damage=w.damage+(key==='head'?1:0);z.hp-=damage;if(z.hp<=0)killZombie(z,hit.point,shotDir);
+ }}
+function shootDesktop(){const origin=new THREE.Vector3();camera.getWorldPosition(origin);const dir=new THREE.Vector3();camera.getWorldDirection(dir);tryShoot(origin,dir)}
+function fireController(c){const origin=c.getWorldPosition(new THREE.Vector3()),q=c.getWorldQuaternion(new THREE.Quaternion()),dir=new THREE.Vector3(0,0,-1).applyQuaternion(q).normalize();tryShoot(origin,dir)}
+function moveDesktop(dt){if(renderer.xr.isPresenting)return;const f=new THREE.Vector3(Math.sin(yaw),0,-Math.cos(yaw)),r=new THREE.Vector3(Math.cos(yaw),0,Math.sin(yaw));const move=new THREE.Vector3();if(keys.KeyW||keys.ArrowUp)move.add(f);if(keys.KeyS||keys.ArrowDown)move.sub(f);if(keys.KeyD||keys.ArrowRight)move.add(r);if(keys.KeyA||keys.ArrowLeft)move.sub(r);if(move.lengthSq())rig.position.addScaledVector(move.normalize(),dt*4.3);rig.position.x=THREE.MathUtils.clamp(rig.position.x,-28,28);rig.position.z=THREE.MathUtils.clamp(rig.position.z,-28,28);camera.rotation.y=yaw;camera.rotation.x=pitch}
+const xrPrev={};
+function pollXR(dt){if(!renderer.xr.isPresenting)return;const session=renderer.xr.getSession();if(!session)return;
+ for(const src of session.inputSources){if(!src.gamepad)continue;const gp=src.gamepad,hand=src.handedness||'unknown';const prev=xrPrev[hand]||(xrPrev[hand]={});if(hand==='left'){
+  const ax=gp.axes||[],ix=ax.length>=4?2:0,iy=ax.length>=4?3:1;const sx=ax[ix]||0,sy=ax[iy]||0;const forward=flatForward(),right=new THREE.Vector3(forward.z,0,-forward.x);rig.position.addScaledVector(forward,-sy*dt*3.3);rig.position.addScaledVector(right,sx*dt*3.3);
+  const a=!!(gp.buttons[4]&&gp.buttons[4].pressed),b=!!(gp.buttons[5]&&gp.buttons[5].pressed);if(a&&!prev.a)spawnOne();if(b&&!prev.b)spawnHorde(5);prev.a=a;prev.b=b;
+ }else if(hand==='right'){const reloadNow=!!(gp.buttons[5]&&gp.buttons[5].pressed),next=!!(gp.buttons[4]&&gp.buttons[4].pressed);if(reloadNow&&!prev.reload)reload();if(next&&!prev.next)switchWeapon(weaponIndex+1);prev.reload=reloadNow;prev.next=next;}
+ }
+}
+function updateZombies(dt){const pp=playerPos();for(const z of [...zombies]){if(!z.root.parent)continue;if(z.dead){z.age+=dt;z.root.rotation.x+=dt*1.6;z.root.rotation.z+=z.spin*dt*.45;z.root.position.addScaledVector(z.vFall||new THREE.Vector3(),dt);if(z.root.position.y<0)z.root.position.y=0;if(z.age>10){z.root.removeFromParent();const idx=zombies.indexOf(z);if(idx>=0)zombies.splice(idx,1);updateHud()}continue}
+  const p=z.root.position,dx=pp.x-p.x,dz=pp.z-p.z,d=Math.hypot(dx,dz);if(d>1.35){p.x+=(dx/Math.max(d,.001))*z.speed*dt;p.z+=(dz/Math.max(d,.001))*z.speed*dt;z.root.rotation.y=Math.atan2(-dx,-dz)+Math.sin(performance.now()*.003+z.root.position.x)*.035}else{z.root.rotation.z=Math.sin(performance.now()*.005)*.035}
+ }}
+function updateFX(dt){for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.life-=dt;p.vel.y-=p.gravity*dt;p.mesh.position.addScaledVector(p.vel,dt);if(p.mesh.position.y<.03){p.mesh.position.y=.03;p.vel.y*= -.18;p.vel.x*=.65;p.vel.z*=.65}p.mesh.material.opacity=Math.max(0,p.life/p.maxLife);if(p.life<=0){scene.remove(p.mesh);p.mesh.geometry.dispose();p.mesh.material.dispose();particles.splice(i,1)}}for(let i=detached.length-1;i>=0;i--){const p=detached[i];p.life-=dt;p.vel.y-=8*dt;p.obj.position.addScaledVector(p.vel,dt);p.obj.rotation.x+=p.spin.x*dt;p.obj.rotation.y+=p.spin.y*dt;if(p.obj.position.y<.12){p.obj.position.y=.12;p.vel.y=Math.abs(p.vel.y)*.25;p.vel.x*=.7;p.vel.z*=.7;p.spin.multiplyScalar(.75)}if(p.life<1){p.obj.traverse(o=>{if(o.material&&'opacity'in o.material){o.material.transparent=true;o.material.opacity=Math.max(0,p.life)}})}if(p.life<=0){scene.remove(p.obj);p.obj.traverse(o=>{if(o.geometry)o.geometry.dispose()});detached.splice(i,1)}}for(let i=stains.length-1;i>=0;i--){stains[i].life-=dt;if(stains[i].life<=0){scene.remove(stains[i].mesh);stains[i].mesh.geometry.dispose();stains[i].mesh.material.dispose();stains.splice(i,1)}}}
+$('spawn').addEventListener('click',spawnOne);$('horde').addEventListener('click',()=>spawnHorde(5));$('clear').addEventListener('click',clearZombies);$('reload').addEventListener('click',reload);document.querySelectorAll('[data-gun]').forEach(b=>b.addEventListener('click',()=>switchWeapon(Number(b.dataset.gun))));
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='KeyR')reload();if(e.code==='Digit1')switchWeapon(0);if(e.code==='Digit2')switchWeapon(1);if(e.code==='Digit3')switchWeapon(2);if(e.code==='Digit4')switchWeapon(3);if(e.code==='KeyF')spawnOne();if(e.code==='KeyG')spawnHorde(5)});
+addEventListener('keyup',e=>{keys[e.code]=false});
+renderer.domElement.addEventListener('click',()=>{if(!renderer.xr.isPresenting&&document.pointerLockElement!==renderer.domElement)renderer.domElement.requestPointerLock?.()});
+document.addEventListener('pointerlockchange',()=>{$('message').textContent=document.pointerLockElement===renderer.domElement?'WASD move • Mouse aim • Hold click to fire • R reload • Esc unlocks':'Click the arena to lock mouse. In VR use the right trigger to fire.'});
+document.addEventListener('mousemove',e=>{if(document.pointerLockElement===renderer.domElement&&!renderer.xr.isPresenting){yaw-=e.movementX*.0022;pitch=THREE.MathUtils.clamp(pitch-e.movementY*.0022,-1.25,1.25)}});
+renderer.domElement.addEventListener('mousedown',e=>{if(e.button===0&&!renderer.xr.isPresenting){mouseHeld=true;if(document.pointerLockElement!==renderer.domElement)shootDesktop()}});
+addEventListener('mouseup',()=>mouseHeld=false);
+for(let i=0;i<3;i++)addZombie((i-1)*2.5,-5.5-Math.random()*3);
+updateHud();$('status').textContent='Arena ready. Click to play or press Enter VR.';
+let last=performance.now();
+renderer.setAnimationLoop(now=>{const dt=Math.min((now-last)/1000,.04);last=now;moveDesktop(dt);pollXR(dt);updateZombies(dt);updateFX(dt);if(mouseHeld&&!renderer.xr.isPresenting)shootDesktop();desktopGun.visible=!renderer.xr.isPresenting;controllers.forEach(c=>{if(c.userData.laser)c.userData.laser.visible=renderer.xr.isPresenting});renderer.render(scene,camera)});
+</script>
+</body>
+</html>
